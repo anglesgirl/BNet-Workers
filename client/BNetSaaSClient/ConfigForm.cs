@@ -35,7 +35,7 @@ public sealed class ConfigForm : Form
         _txtServerUrl.Location = new Point(130, 60);
         _txtServerUrl.Size = new Size(300, 28);
         _txtServerUrl.Text = existing?.ServerUrl ?? "";
-        _txtServerUrl.PlaceholderText = "https://bnet-workers.你的域名.workers.dev";
+        _txtServerUrl.PlaceholderText = "https://bnet-workers-server.你的子域.workers.dev";
 
         var lblId = new Label { Text = "电脑编号：", AutoSize = true, Location = new Point(24, 104) };
         _txtComputerId.Location = new Point(130, 100);

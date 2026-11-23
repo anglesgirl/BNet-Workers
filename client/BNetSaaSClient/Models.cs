@@ -5,7 +5,7 @@ namespace BNetSaaSClient;
 /// <summary>client-config.json：与 exe 同目录。首次运行缺失时弹 ConfigForm 让用户填。</summary>
 public sealed class ClientConfig
 {
-    /// <summary>服务端 Worker 地址，如 https://bnet-workers.你的域名.workers.dev（不要带结尾斜杠）</summary>
+    /// <summary>服务端 Worker 地址，如 https://bnet-workers-server.你的子域.workers.dev（不要带结尾斜杠）</summary>
     public string ServerUrl { get; set; } = "";
 
     /// <summary>电脑编号，如 PC01（WS 与 API 都用它标识本机）</summary>

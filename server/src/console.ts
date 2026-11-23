@@ -161,16 +161,16 @@ function loadComputers(){
     j.computers.forEach(function(c){
       var live = c.live || {};
       var st = c.status;
-      html += '<div class="pc"><h3>' + esc(c.id) + ' ' + esc(c.name||'') + ' <span class="badge b-' + st + '">' + st + '</span></h3>'
+      html += '<div class="pc"><h3>' + esc(c.id) + ' ' + esc(c.name||'') + ' <span class="badge b-' + st + '">' + ({in_use:'使用中',locked:'已锁定',offline:'离线',paused:'已暂停'}[st]||st) + '</span></h3>'
         + '<p>用户：' + esc(live.username || '-') + '</p>'
         + '<p>剩余：' + fmtDur(live.remainingSeconds) + ' · 在线：' + (live.online ? '是' : '否') + '</p>'
         + '<p>上次在线：' + fmtTime(c.last_seen) + '</p>'
-        + '<button onclick="cmd(\'' + esc(c.id) + '\',\'LOCK\')">锁定</button>'
-        + '<button onclick="cmd(\'' + esc(c.id) + '\',\'LOGOUT\')">下机结算</button>'
-        + '<button onclick="cmd(\'' + esc(c.id) + '\',\'MESSAGE\')">发消息</button>'
-        + '<button onclick="cmd(\'' + esc(c.id) + '\',\'REFRESH\')">刷新</button>'
-        + '<button onclick="cmd(\'' + esc(c.id) + '\',\'RESTART\')">重启</button>'
-        + '<button class="danger" onclick="cmd(\'' + esc(c.id) + '\',\'SHUTDOWN\')">关机</button>'
+        + '<button onclick="cmd(\\'' + esc(c.id) + '\\',\\'LOCK\\')">锁定</button>'
+        + '<button onclick="cmd(\\'' + esc(c.id) + '\\',\\'LOGOUT\\')">下机结算</button>'
+        + '<button onclick="cmd(\\'' + esc(c.id) + '\\',\\'MESSAGE\\')">发消息</button>'
+        + '<button onclick="cmd(\\'' + esc(c.id) + '\\',\\'REFRESH\\')">刷新</button>'
+        + '<button onclick="cmd(\\'' + esc(c.id) + '\\',\\'RESTART\\')">重启</button>'
+        + '<button class="danger" onclick="cmd(\\'' + esc(c.id) + '\\',\\'SHUTDOWN\\')">关机</button>'
         + '</div>';
     });
     document.getElementById('pcList').innerHTML = html;

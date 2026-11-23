@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>BNetSaaSClient</AssemblyName>
+    <RootNamespace>BNetSaaSClient</RootNamespace>
+    <Version>1.0.0</Version>
+    <!-- Linux 沙箱上交叉编译 Windows 目标必须开这个开关，否则报 NETSDK1100 -->
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <!-- 单文件发布时不重要；平时以文件夹形式部署，client-config.json 放 exe 旁边 -->
+    <InvariantGlobalization>false</InvariantGlobalization>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!--
+      注意：不要直接 PackageReference Microsoft.WindowsDesktop.App.Ref，
+      它是 DotnetPlatform 类型包，直接引用会报 NU1213。正确做法：
+      UseWindowsForms=true 已隐含 Microsoft.WindowsDesktop.App 框架引用，
+      SDK 还原时会自动从 NuGet 源解析同版本 targeting pack。
+      Linux 沙箱的 SDK 自带包里没有它，所以本地源 nuget-local/ 备了
+      8.0.34 版（SDK 按本机运行时版本 8.0.34 精确索取）；
+      Windows 上 dotnet build 走 nuget.org，会自动下到全局包缓存。
+    -->
+    <!-- 微信支付二维码生成 -->
+    <PackageReference Include="QRCoder" Version="1.6.0" />
+  </ItemGroup>
+
+</Project>

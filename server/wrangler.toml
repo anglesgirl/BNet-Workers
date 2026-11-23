@@ -1,0 +1,30 @@
+# BNet SaaS 服务端 — 单租户：一个部署 = 一家网吧
+name = "bnet-workers-server"
+main = "src/index.ts"
+compatibility_date = "2026-01-01"
+
+# Durable Object：SQLite-backed（免费版只支持 new_sqlite_classes）
+[durable_objects]
+bindings = [
+  { name = "CAFE_ROOM", class_name = "CafeRoom" }
+]
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["CafeRoom"]
+
+[[d1_databases]]
+binding = "DB"
+database_name = "bnet-workers"
+# 先跑 `npx wrangler d1 create bnet-workers`，把返回的 database_id 填到这里
+database_id = "00000000-0000-0000-0000-000000000000"
+
+# ---- Secrets（绝不在代码/仓库里写真实值，用 wrangler secret put 设置）----
+#   wrangler secret put ADMIN_PASSWORD   # 管理员密码（控制台登录用）
+#   wrangler secret put WECHAT_APPID     # 微信支付 AppID（公众号/开放平台）
+#   wrangler secret put WECHAT_MCHID     # 微信支付商户号
+#   wrangler secret put WECHAT_APIKEY    # 微信支付 v2 API 密钥（32 位）
+# 可选普通变量（[vars] 里填，不敏感）：
+#   SHOP_NAME = "我的网吧"   # 未在 settings 表设置时的默认网吧名
+[vars]
+SHOP_NAME = "我的网吧"

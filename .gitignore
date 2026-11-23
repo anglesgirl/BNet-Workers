@@ -1,0 +1,14 @@
+# Node / Wrangler
+node_modules/
+.wrangler/
+dist/
+.dev.vars
+# .NET
+bin/
+obj/
+.vs/
+# OS
+.DS_Store
+Thumbs.db
+# Sandbox-only offline NuGet cache (restore from nuget.org normally)
+client/nuget-local/

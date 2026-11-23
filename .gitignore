@@ -12,3 +12,7 @@ obj/
 Thumbs.db
 # Sandbox-only offline NuGet cache (restore from nuget.org normally)
 client/nuget-local/
+
+# Installer build outputs (ship as GitHub release assets, not in git)
+installer/*.exe
+installer/staging/

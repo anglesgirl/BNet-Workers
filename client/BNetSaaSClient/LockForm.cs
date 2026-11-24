@@ -64,7 +64,12 @@ public sealed class LockForm : Form
     {
         // DPI 缩放：边框/字体按 DPI 同比缩放，否则固定像素尺寸配点数字体，
         // 高 DPI 下字体撑出卡片和按钮（须在建控件之前设）。
+        // 关键：必须同时写死 AutoScaleDimensions = 96，否则 WinForms 拿当前 DPI
+        // 当设计基线，缩放比恒为 1，固定像素尺寸（430 卡片等）不缩放，只有
+        // 点数字体随 DPI 变大，文字就撑出卡片被裁 —— v1.0.1 只设了
+        // AutoScaleMode 就是这么失效的。
         AutoScaleMode = AutoScaleMode.Dpi;
+        AutoScaleDimensions = new SizeF(96F, 96F);
         _config = config;
         _api = new ApiClient(config);
         _ws = new WsClient(config);

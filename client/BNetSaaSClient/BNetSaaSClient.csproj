@@ -8,7 +8,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <AssemblyName>BNetSaaSClient</AssemblyName>
     <RootNamespace>BNetSaaSClient</RootNamespace>
-    <Version>1.0.2</Version>
+    <Version>1.0.3</Version>
     <!-- 高 DPI：PerMonitorV2 + 各窗体 AutoScaleMode.Dpi。
          之前没配，字体按点数随 DPI 放大、固定像素的卡片/按钮却不放，
          150% 缩放的笔记本上标题、用户名、状态文字被裁、按钮文字溢出（用户 2026-11-23 截图）。 -->

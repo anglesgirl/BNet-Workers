@@ -93,6 +93,18 @@ input,select{padding:8px;border:1px solid #ccc;border-radius:6px;font-size:14px;
     <div id="tab-pricing" class="tab hidden">
       <div class="card"><h3>收费标准（分/小时）</h3><div id="pricingList">加载中…</div>
       <p style="color:#666;font-size:13px">计费取第一条启用的标准；会员登录按余额扣费，余额耗尽自动锁定下机。</p></div>
+      <div class="card"><h3 id="pricingFormTitle">编辑收费标准</h3>
+        <input type="hidden" id="pId" value="">
+        名称 <input id="pName" placeholder="标准" size="10">
+        标准价 <input id="pStd" type="number" step="0.01" min="0" style="width:90px"> 元/时
+        会员价 <input id="pMem" type="number" step="0.01" min="0" style="width:90px"> 元/时
+        VIP价 <input id="pVip" type="number" step="0.01" min="0" style="width:90px"> 元/时
+        <label><input id="pEnabled" type="checkbox" checked> 启用</label>
+        <button class="primary" onclick="savePricing()">保存</button>
+        <button onclick="newPricing()">新增</button>
+        <span id="pMsg"></span>
+        <p style="color:#666;font-size:13px">点表格里的“编辑”改某一行；不想用的标准取消勾选“启用”即可。</p>
+      </div>
     </div>
 
     <div id="tab-topups" class="tab hidden">
@@ -224,14 +236,53 @@ function setType(id){
   if(!t) return;
   api('/api/admin/members', {method:'POST', body: JSON.stringify({id: id, type: t})}).then(loadMembers).catch(function(e){ alert(e.message); });
 }
+var pricingFormInit = false;
 function loadPricing(){
   api('/api/admin/pricing').then(function(j){
-    var html = '<table><tr><th>ID</th><th>名称</th><th>标准价</th><th>会员价</th><th>VIP价</th><th>启用</th></tr>';
+    var html = '<table><tr><th>ID</th><th>名称</th><th>标准价</th><th>会员价</th><th>VIP价</th><th>启用</th><th>操作</th></tr>';
     j.pricing.forEach(function(p){
-      html += '<tr><td>' + p.id + '</td><td>' + esc(p.name) + '</td><td>' + fmtMoney(p.price_per_hour_cents) + '/时</td><td>' + fmtMoney(p.member_price_cents) + '/时</td><td>' + fmtMoney(p.vip_price_cents) + '/时</td><td>' + (p.enabled?'是':'否') + '</td></tr>';
+      html += '<tr><td>' + p.id + '</td><td>' + esc(p.name) + '</td><td>' + fmtMoney(p.price_per_hour_cents) + '/时</td><td>' + fmtMoney(p.member_price_cents) + '/时</td><td>' + fmtMoney(p.vip_price_cents) + '/时</td><td>' + (p.enabled?'是':'否') + '</td>'
+        + '<td><button onclick="editPricing(' + p.id + ')">编辑</button></td></tr>';
     });
     document.getElementById('pricingList').innerHTML = html + '</table>';
+    if(!pricingFormInit && j.pricing.length){ fillPricingForm(j.pricing[0]); pricingFormInit = true; }
   }).catch(function(e){ document.getElementById('pricingList').innerHTML = '<p class="err">' + esc(e.message) + '</p>'; });
+}
+function fillPricingForm(p){
+  document.getElementById('pId').value = p.id;
+  document.getElementById('pName').value = p.name;
+  document.getElementById('pStd').value = (p.price_per_hour_cents/100).toFixed(2);
+  document.getElementById('pMem').value = (p.member_price_cents/100).toFixed(2);
+  document.getElementById('pVip').value = (p.vip_price_cents/100).toFixed(2);
+  document.getElementById('pEnabled').checked = !!p.enabled;
+  document.getElementById('pricingFormTitle').textContent = '编辑收费标准 #' + p.id;
+}
+function editPricing(id){
+  api('/api/admin/pricing').then(function(j){
+    var p = j.pricing.find(function(x){ return x.id===id; });
+    if(p) fillPricingForm(p);
+  }).catch(function(e){ alert(e.message); });
+}
+function newPricing(){
+  document.getElementById('pId').value = '';
+  document.getElementById('pName').value = '';
+  document.getElementById('pStd').value = '5.00';
+  document.getElementById('pMem').value = '4.00';
+  document.getElementById('pVip').value = '3.00';
+  document.getElementById('pEnabled').checked = true;
+  document.getElementById('pricingFormTitle').textContent = '新增收费标准';
+}
+function savePricing(){
+  var id = Number(document.getElementById('pId').value || 0);
+  var body = {name: document.getElementById('pName').value.trim() || '标准',
+    price_per_hour_cents: Math.round(Number(document.getElementById('pStd').value||0)*100),
+    member_price_cents: Math.round(Number(document.getElementById('pMem').value||0)*100),
+    vip_price_cents: Math.round(Number(document.getElementById('pVip').value||0)*100),
+    enabled: document.getElementById('pEnabled').checked};
+  if(id) body.id = id;
+  api('/api/admin/pricing', {method:'POST', body: JSON.stringify(body)})
+    .then(function(){ document.getElementById('pMsg').textContent='已保存'; document.getElementById('pMsg').className='ok'; loadPricing(); })
+    .catch(function(e){ document.getElementById('pMsg').textContent=e.message; document.getElementById('pMsg').className='err'; });
 }
 function loadTopups(){
   api('/api/admin/topups').then(function(j){

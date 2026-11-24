@@ -2,7 +2,7 @@
 ; BNet-Workers 锁屏客户端 — 安装包脚本 (NSIS 3.x)
 ; 在 Linux 沙箱上用 makensis 编译, 产物为 Windows 安装程序:
 ;   cd installer && makensis BNet-Workers-Setup.nsi
-; 产物: BNet-Workers-Setup-1.0.7.exe (约 1 MB, 不再捆绑运行库)
+; 产物: BNet-Workers-Setup-1.0.8.exe (约 1 MB, 不再捆绑运行库)
 ;
 ; 安装内容:
 ;   1. 检测 .NET 8 Desktop Runtime (x64), 缺失时才从微软官方 CDN
@@ -16,7 +16,7 @@
 ; ============================================================
 
 !define APPNAME "BNet-Workers 客户端"
-!define APPVERSION "1.0.7"
+!define APPVERSION "1.0.8"
 !define PUBLISHER "BNet-Workers"
 !define EXENAME "BNetSaaSClient.exe"
 !define RUNTIME_INSTALLER "windowsdesktop-runtime-8.0.34-win-x64.exe"
@@ -26,16 +26,16 @@
 
 Unicode true
 Name "${APPNAME} ${APPVERSION}"
-OutFile "BNet-Workers-Setup-1.0.7.exe"
+OutFile "BNet-Workers-Setup-1.0.8.exe"
 InstallDir "$PROGRAMFILES64\BNet-Workers"
 RequestExecutionLevel admin
 SetCompressor /SOLID lzma
 
 ; 安装程序自身的文件信息 (资源管理器属性里可见)
-VIProductVersion "1.0.7.0"
+VIProductVersion "1.0.8.0"
 VIAddVersionKey "ProductName" "BNet-Workers 客户端"
-VIAddVersionKey "FileVersion" "1.0.7.0"
-VIAddVersionKey "ProductVersion" "1.0.7"
+VIAddVersionKey "FileVersion" "1.0.8.0"
+VIAddVersionKey "ProductVersion" "1.0.8"
 VIAddVersionKey "CompanyName" "BNet-Workers"
 VIAddVersionKey "FileDescription" "BNet-Workers 锁屏客户端安装程序"
 VIAddVersionKey "LegalCopyright" "BNet-Workers"
@@ -121,12 +121,19 @@ SectionEnd
 Section "锁屏客户端" SEC_APP
   ; 旧客户端在跑会锁住 exe 导致覆盖失败：先结束它（自动更新就是靠这个）
   ExecWait 'taskkill.exe /F /IM ${EXENAME}' $0
+  ; 守护进程也先停掉再覆盖，否则新版 watchdog 换不上去
+  ExecWait 'taskkill.exe /F /IM BNetSaaSWatchdog.exe' $0
   SetOutPath "$INSTDIR"
   File "staging\publish\BNetSaaSClient.exe"
   File "staging\publish\BNetSaaSClient.dll"
   File "staging\publish\BNetSaaSClient.deps.json"
   File "staging\publish\BNetSaaSClient.runtimeconfig.json"
   File "staging\publish\QRCoder.dll"
+  ; 守护进程：盯着锁屏客户端，死了就拉起来（互相守护，单杀一个没用）
+  File "staging\publish\BNetSaaSWatchdog.exe"
+  File "staging\publish\BNetSaaSWatchdog.dll"
+  File "staging\publish\BNetSaaSWatchdog.deps.json"
+  File "staging\publish\BNetSaaSWatchdog.runtimeconfig.json"
   ; 配置样例: 部署时改名 client-config.json 放 exe 旁, 或首次运行在弹窗里填
   File "..\client\client-config.example.json"
 
@@ -139,6 +146,8 @@ Section "锁屏客户端" SEC_APP
 
   ; 开机自启: 所有用户登录时启动锁屏
   WriteRegStr HKLM "SOFTWARE\Microsoft\Windows\CurrentVersion\Run" "BNetSaaSClient" '"$INSTDIR\${EXENAME}"'
+  ; 守护进程也开机自启：客户端被杀、还没来得及拉守护进程时，登录后守护进程自己起来再拉锁屏
+  WriteRegStr HKLM "SOFTWARE\Microsoft\Windows\CurrentVersion\Run" "BNetSaaSWatchdog" '"$INSTDIR\BNetSaaSWatchdog.exe"'
 
   ; 卸载程序 + 控制面板登记
   WriteUninstaller "$INSTDIR\Uninstall.exe"
@@ -165,12 +174,18 @@ FunctionEnd
 Section "Uninstall"
   ; 锁屏正在运行时先结束它, 否则 exe 删不掉 (忽略 taskkill 的返回值)
   ExecWait 'taskkill.exe /F /IM ${EXENAME}' $0
+  ExecWait 'taskkill.exe /F /IM BNetSaaSWatchdog.exe' $0
 
   Delete "$INSTDIR\${EXENAME}"
   Delete "$INSTDIR\BNetSaaSClient.dll"
   Delete "$INSTDIR\BNetSaaSClient.deps.json"
   Delete "$INSTDIR\BNetSaaSClient.runtimeconfig.json"
   Delete "$INSTDIR\QRCoder.dll"
+  Delete "$INSTDIR\BNetSaaSWatchdog.exe"
+  Delete "$INSTDIR\BNetSaaSWatchdog.dll"
+  Delete "$INSTDIR\BNetSaaSWatchdog.deps.json"
+  Delete "$INSTDIR\BNetSaaSWatchdog.runtimeconfig.json"
+  Delete "$INSTDIR\maintenance.flag"
   Delete "$INSTDIR\client-config.example.json"
   Delete "$INSTDIR\Uninstall.exe"
   ; client-config.json 是店里的配置 (服务端地址/电脑编号), 故意保留,
@@ -180,6 +195,7 @@ Section "Uninstall"
   Delete "$DESKTOP\BNet-Workers 客户端.lnk"
   RMDir "$SMPROGRAMS\BNet-Workers"
   DeleteRegValue HKLM "SOFTWARE\Microsoft\Windows\CurrentVersion\Run" "BNetSaaSClient"
+  DeleteRegValue HKLM "SOFTWARE\Microsoft\Windows\CurrentVersion\Run" "BNetSaaSWatchdog"
   DeleteRegKey HKLM "${UNINSTALL_KEY}"
   RMDir "$INSTDIR"
 SectionEnd

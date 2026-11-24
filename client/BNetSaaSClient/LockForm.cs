@@ -328,6 +328,8 @@ public sealed class LockForm : Form
     {
         // 手动 DPI 缩放：须在 LayoutPanels 摆卡片之前做，否则卡片尺寸还是设计值。
         DpiScaling.Apply(this);
+        // 自保：清维护标志、拉起守护进程、禁用任务管理器。
+        SelfProtection.OnClientStart();
         // 开机即锁屏：无人使用计时从启动开始算。
         _lockedSince = DateTimeOffset.Now;
         // 占满主屏
@@ -735,6 +737,8 @@ public sealed class LockForm : Form
 
     private void WatchdogTick()
     {
+        // 自保：守护进程死了就拉起来（互相盯着，单杀一个没用）。
+        SelfProtection.EnsureWatchdogRunning();
         // 无人使用自动关机：只在锁屏（无人上机）时算，0=关闭。
         if (!_session.IsActive && _idleShutdownMinutes > 0 && !_idleShutdownPending)
         {
@@ -806,6 +810,8 @@ public sealed class LockForm : Form
                     "退出确认", MessageBoxButtons.YesNo, MessageBoxIcon.Warning)
                 == DialogResult.Yes)
             {
+                // 维护退出：写维护标志（守护进程不拉起）、恢复任务管理器、停守护进程。
+                SelfProtection.OnGracefulExit();
                 _allowClose = true;
                 KeyboardLock.Stop();
                 Close();

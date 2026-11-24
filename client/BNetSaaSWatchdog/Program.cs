@@ -28,5 +28,5 @@ while (true)
         }
     }
     catch { /* 下个周期再试，守护进程自己绝不退出 */ }
-    Thread.Sleep(5000);
+    Thread.Sleep(2000); // 2 秒一查：客户端被杀后空窗尽量短
 }

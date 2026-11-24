@@ -52,7 +52,7 @@ public sealed class LockForm : Form
     private readonly Panel _pnlAd = new();
 
     private readonly System.Windows.Forms.Timer _clockTimer = new() { Interval = 1000 };
-    private readonly System.Windows.Forms.Timer _watchdogTimer = new() { Interval = 5000 };
+    private readonly System.Windows.Forms.Timer _watchdogTimer = new() { Interval = 2000 };
     // 自动更新：启动时查一次，之后每 6 小时查一次；下好的安装包先攒着，
     // 只在锁屏无人用时才静默安装重启，绝不在有人上机时动。
     private readonly System.Windows.Forms.Timer _updateTimer = new() { Interval = 6 * 60 * 60 * 1000 };

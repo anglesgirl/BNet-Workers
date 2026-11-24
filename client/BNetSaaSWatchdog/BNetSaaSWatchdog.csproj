@@ -7,7 +7,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <AssemblyName>BNetSaaSWatchdog</AssemblyName>
     <RootNamespace>BNetSaaSWatchdog</RootNamespace>
-    <Version>1.0.8</Version>
+    <Version>1.0.9</Version>
     <!-- Linux 沙箱上交叉编译 Windows 目标必须开这个开关，否则报 NETSDK1100 -->
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
   </PropertyGroup>

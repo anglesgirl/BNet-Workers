@@ -120,11 +120,11 @@ export class CafeRoom implements DurableObject {
     const tags = this.ctx.getTags(ws);
     const computerId = tags[0];
     if (!computerId) return;
-    // 客户端重连会先开新 socket 再关旧 socket（或旧 socket 的 close 回调晚到）：
-    // 还有活着的连接就别把状态打回 offline，否则在线的机器在控制台永远显示离线。
-    // 注意：close 回调里 getWebSockets 仍可能含正在关闭的这条，须把它排除再数。
-    const others = this.ctx.getWebSockets(computerId).filter((s) => s !== ws);
-    if (others.length > 0) return;
+    // 断线只记 offline，不结束上机：客户端重连后 hello 会恢复状态，
+    // 即使 close 回调晚到盖掉了 hello，心跳 30 秒内也会把它纠回在线。
+    // (注: 曾试过在 close 里用 getWebSockets 排除正在关的 socket 再判断，
+    //  但回调里的 ws 与 getWebSockets 返回的不是同一对象，恒误判为还有连接，
+    //  导致真离线的机器永远不回 offline，已撤掉，改靠心跳兜底。)
     this.ctx.storage.sql.exec(
       "UPDATE sessions SET status = 'offline', lastSeen = ? WHERE computerId = ?",
       Date.now(), computerId,

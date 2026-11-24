@@ -62,14 +62,10 @@ public sealed class LockForm : Form
 
     public LockForm(ClientConfig config)
     {
-        // DPI 缩放：边框/字体按 DPI 同比缩放，否则固定像素尺寸配点数字体，
-        // 高 DPI 下字体撑出卡片和按钮（须在建控件之前设）。
-        // 关键：必须同时写死 AutoScaleDimensions = 96，否则 WinForms 拿当前 DPI
-        // 当设计基线，缩放比恒为 1，固定像素尺寸（430 卡片等）不缩放，只有
-        // 点数字体随 DPI 变大，文字就撑出卡片被裁 —— v1.0.1 只设了
-        // AutoScaleMode 就是这么失效的。
-        AutoScaleMode = AutoScaleMode.Dpi;
-        AutoScaleDimensions = new SizeF(96F, 96F);
+        // DPI：不用 WinForms 自动缩放（AutoScaleMode.Dpi 两次失效），
+        // 改手动：AutoScaleMode.None，Load 里 DpiScaling.Apply 按 DeviceDpi
+        // 只缩控件 Bounds，字体不动（点数字体本来就随 DPI 变大）。
+        AutoScaleMode = AutoScaleMode.None;
         _config = config;
         _api = new ApiClient(config);
         _ws = new WsClient(config);
@@ -320,6 +316,8 @@ public sealed class LockForm : Form
 
     private async Task OnLoadAsync()
     {
+        // 手动 DPI 缩放：须在 LayoutPanels 摆卡片之前做，否则卡片尺寸还是设计值。
+        DpiScaling.Apply(this);
         // 占满主屏
         var screen = Screen.PrimaryScreen;
         if (screen != null)

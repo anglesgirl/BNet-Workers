@@ -19,9 +19,9 @@ public sealed class ConfigForm : Form
         StartPosition = FormStartPosition.CenterScreen;
         MaximizeBox = false;
         MinimizeBox = false;
-        AutoScaleMode = AutoScaleMode.Dpi; // 高 DPI 下窗体与字体同比缩放，不裁按钮
-        AutoScaleDimensions = new SizeF(96F, 96F); // 设计基线 96，缺了它缩放比恒为 1（见 LockForm）
+        AutoScaleMode = AutoScaleMode.None; // 手动 DPI 缩放（见 DpiScaling），框架自动缩放两次失效
         ClientSize = new Size(460, 260);
+        Load += (_, _) => DpiScaling.Apply(this);
         BackColor = Color.FromArgb(15, 23, 42);
         ForeColor = Color.White;
 

@@ -58,6 +58,11 @@ public sealed class LockForm : Form
     private readonly System.Windows.Forms.Timer _updateTimer = new() { Interval = 6 * 60 * 60 * 1000 };
     private string? _pendingUpdatePath;
     private bool _updateChecking;
+    // 无人使用自动关机：锁屏无人上机满这个分钟数后关机（0=关闭）。
+    // _lockedSince = 最近一次变回锁屏的时间（开机即锁屏也算）。
+    private int _idleShutdownMinutes;
+    private DateTimeOffset _lockedSince = DateTimeOffset.Now;
+    private bool _idleShutdownPending;
     private readonly System.Windows.Forms.Timer _orderPollTimer = new() { Interval = 3000 };
 
     private static readonly Color BgColor = Color.FromArgb(15, 23, 42);
@@ -323,6 +328,8 @@ public sealed class LockForm : Form
     {
         // 手动 DPI 缩放：须在 LayoutPanels 摆卡片之前做，否则卡片尺寸还是设计值。
         DpiScaling.Apply(this);
+        // 开机即锁屏：无人使用计时从启动开始算。
+        _lockedSince = DateTimeOffset.Now;
         // 占满主屏
         var screen = Screen.PrimaryScreen;
         if (screen != null)
@@ -400,6 +407,7 @@ public sealed class LockForm : Form
     {
         _lblShopName.Text = string.IsNullOrWhiteSpace(cfg.ShopName) ? "网吧" : cfg.ShopName;
         Text = $"{_lblShopName.Text} - 锁屏";
+        _idleShutdownMinutes = Math.Max(0, cfg.IdleShutdownMinutes);
         _lstPricing.Items.Clear();
         if (cfg.Pricing.Count == 0) _lstPricing.Items.Add("暂无收费标准");
         else foreach (var p in cfg.Pricing) _lstPricing.Items.Add(p.Display);
@@ -488,6 +496,9 @@ public sealed class LockForm : Form
         _session.BalanceCents = balanceCents;
         _session.ExpiresAt = expiresAt;
 
+        // 刚上机：若 60 秒关机倒计时正在走，取消它（有人用了，别关）。
+        CancelIdleShutdown();
+
         KeyboardLock.Stop();
         Hide();
 
@@ -552,6 +563,8 @@ public sealed class LockForm : Form
             Activate();
         }
         KeyboardLock.Start();
+        // 刚变回锁屏：无人使用计时从现在重算。
+        _lockedSince = DateTimeOffset.Now;
         // 刚变回锁屏：若有攒着的新版安装包，现在装（没人用，不打扰）。
         TryApplyPendingUpdate();
     }
@@ -722,6 +735,12 @@ public sealed class LockForm : Form
 
     private void WatchdogTick()
     {
+        // 无人使用自动关机：只在锁屏（无人上机）时算，0=关闭。
+        if (!_session.IsActive && _idleShutdownMinutes > 0 && !_idleShutdownPending)
+        {
+            if (DateTimeOffset.Now - _lockedSince >= TimeSpan.FromMinutes(_idleShutdownMinutes))
+                TriggerIdleShutdown();
+        }
         if (!_session.IsActive) return; // 锁屏状态：断线只显示重连中，绝不退出锁屏
         if (_ws.Connected) return;
         var disconnectedFor = DateTimeOffset.Now - _ws.LastSeen;
@@ -732,6 +751,48 @@ public sealed class LockForm : Form
             MessageBox.Show(this, "与服务器断开超过 60 秒，已自动锁屏。", "断线保护",
                 MessageBoxButtons.OK, MessageBoxIcon.Warning);
         }
+    }
+
+    private void TriggerIdleShutdown()
+    {
+        _idleShutdownPending = true;
+        SetStatus($"本机已 {_idleShutdownMinutes} 分钟无人使用，60 秒后自动关机。");
+        try
+        {
+            // /t 60：给刚走过来的人 60 秒上机取消的机会（上机时调 shutdown /a）。
+            var shutdownExe = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.System), "shutdown.exe");
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = shutdownExe,
+                Arguments = "/s /t 60",
+                UseShellExecute = false,
+                CreateNoWindow = true,
+            });
+        }
+        catch
+        {
+            _idleShutdownPending = false; // 关机命令起不来就当没触发，下个周期再试
+        }
+    }
+
+    private void CancelIdleShutdown()
+    {
+        if (!_idleShutdownPending) return;
+        _idleShutdownPending = false;
+        try
+        {
+            var shutdownExe = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.System), "shutdown.exe");
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = shutdownExe,
+                Arguments = "/a",
+                UseShellExecute = false,
+                CreateNoWindow = true,
+            });
+        }
+        catch { /* 取消失败就让它关，锁屏本来就该关 */ }
     }
 
     // ================= 维护退出 =================

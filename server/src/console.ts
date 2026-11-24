@@ -120,6 +120,8 @@ input,select{padding:8px;border:1px solid #ccc;border-radius:6px;font-size:14px;
         网吧名 <input id="setShop" size="20"> <button class="primary" onclick="saveSettings()">保存</button>
         <span id="setMsg"></span>
         <p style="color:#666;font-size:13px">微信支付商户号/密钥、管理员密码在服务器 secrets 里改，不在这里填。</p>
+        <hr>
+        <p>无人使用自动关机 <input id="setIdleShutdown" type="number" min="0" step="1" style="width:80px"> 分钟（0=关闭；锁屏无人上机满这个时间后自动关机，有人上机时不触发）</p>
       </div>
     </div>
 
@@ -306,10 +308,12 @@ function loadSettings(){
   api('/api/admin/settings').then(function(j){
     document.getElementById('setShop').value = j.settings.shop_name || '';
     document.getElementById('shopName').textContent = j.settings.shop_name || '';
+    document.getElementById('setIdleShutdown').value = j.settings.idle_shutdown_minutes || '0';
   }).catch(function(){});
 }
 function saveSettings(){
-  api('/api/admin/settings', {method:'POST', body: JSON.stringify({key:'shop_name', value: document.getElementById('setShop').value})})
+  var idle = Math.max(0, parseInt(document.getElementById('setIdleShutdown').value, 10) || 0);
+  api('/api/admin/settings', {method:'POST', body: JSON.stringify({settings:{shop_name: document.getElementById('setShop').value, idle_shutdown_minutes: String(idle)}})})
     .then(function(){ document.getElementById('setMsg').textContent='已保存'; document.getElementById('setMsg').className='ok'; loadSettings(); })
     .catch(function(e){ document.getElementById('setMsg').textContent=e.message; document.getElementById('setMsg').className='err'; });
 }

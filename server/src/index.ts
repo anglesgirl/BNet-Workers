@@ -46,6 +46,7 @@ export default {
     // GET /api/client/config?computerId=PC01
     if (path === '/api/client/config' && request.method === 'GET') {
       const pricing = await env.DB.prepare('SELECT * FROM pricing WHERE enabled = 1 ORDER BY id').all();
+      const idleRaw = await getSetting(env, 'idle_shutdown_minutes', '0');
       return json({
         shopName: await getShopName(env),
         // D1 列是 snake_case，客户端要 camelCase：直接返原行会让价格全变 0
@@ -57,6 +58,8 @@ export default {
           memberPriceCents: p.member_price_cents,
           vipPriceCents: p.vip_price_cents,
         })),
+        // 无人使用多久后自动关机（分钟，0=关闭），控制台“设置”里改。
+        idleShutdownMinutes: Math.max(0, parseInt(idleRaw, 10) || 0),
         serverTime: nowIso(),
       });
     }

@@ -59,6 +59,7 @@ public sealed class ShopConfig
 {
     [JsonPropertyName("shopName")] public string ShopName { get; set; } = "网吧";
     [JsonPropertyName("pricing")] public List<PricingItem> Pricing { get; set; } = new();
+    [JsonPropertyName("idleShutdownMinutes")] public int IdleShutdownMinutes { get; set; }
     [JsonPropertyName("serverTime")] public string? ServerTime { get; set; }
 }
 

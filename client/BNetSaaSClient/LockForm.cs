@@ -62,6 +62,9 @@ public sealed class LockForm : Form
 
     public LockForm(ClientConfig config)
     {
+        // DPI 缩放：边框/字体按 DPI 同比缩放，否则固定像素尺寸配点数字体，
+        // 高 DPI 下字体撑出卡片和按钮（须在建控件之前设）。
+        AutoScaleMode = AutoScaleMode.Dpi;
         _config = config;
         _api = new ApiClient(config);
         _ws = new WsClient(config);
@@ -153,10 +156,12 @@ public sealed class LockForm : Form
         _btnLogin.Click += async (_, _) => await LoginAsync();
 
         _lblLoginStatus.AutoSize = true;
+        _lblLoginStatus.MaximumSize = new Size(382, 0); // 长报错自动换行，不再伸出卡片外被裁
         _lblLoginStatus.Location = new Point(24, 272);
         _lblLoginStatus.ForeColor = Color.FromArgb(248, 113, 113);
 
         _lblBalanceInfo.AutoSize = true;
+        _lblBalanceInfo.MaximumSize = new Size(382, 0);
         _lblBalanceInfo.Location = new Point(24, 300);
         _lblBalanceInfo.ForeColor = Color.FromArgb(74, 222, 128);
 
@@ -189,7 +194,7 @@ public sealed class LockForm : Form
 
         var lblTitle = new Label
         {
-            Text = "游客扫码充值（微信支付）", Font = new Font("微软雅黑", 18, FontStyle.Bold),
+            Text = "游客充值（微信支付）", Font = new Font("微软雅黑", 18, FontStyle.Bold),
             AutoSize = true, Location = new Point(24, 20),
         };
         var lblUser = new Label { Text = "充值账号（会员用户名）", AutoSize = true, Location = new Point(24, 72) };
@@ -230,6 +235,7 @@ public sealed class LockForm : Form
         _picQr.Visible = false;
 
         _lblOrderStatus.AutoSize = true;
+        _lblOrderStatus.MaximumSize = new Size(382, 0); // 订单号+金额长了自动换行
         _lblOrderStatus.Location = new Point(24, 462);
         _lblOrderStatus.ForeColor = Color.FromArgb(74, 222, 128);
 
@@ -273,16 +279,36 @@ public sealed class LockForm : Form
 
     private void LayoutPanels()
     {
-        int top = 130;
-        int areaHeight = ClientSize.Height - 120 - top; // 减去顶栏与底部广告位
-        int cardY = top + Math.Max(0, (areaHeight - _pnlLogin.Height) / 2);
-        int totalWidth = _pnlLogin.Width + 40 + _pnlTopup.Width;
-        int startX = Math.Max(24, (ClientSize.Width - totalWidth) / 2);
-        _pnlLogin.Location = new Point(startX, cardY);
-        _pnlTopup.Location = new Point(startX + _pnlLogin.Width + 40, cardY);
+        // 窗体还没铺开（启动瞬间的小尺寸）时不算 fit，避免把卡片误缩。
+        if (ClientSize.Width < 800 || ClientSize.Height < 600) return;
 
-        _lblClock.Location = new Point(ClientSize.Width - _lblClock.Width - 32, 24);
-        _lblComputer.Location = new Point(ClientSize.Width - _lblComputer.Width - 32, 72);
+        float s = DeviceDpi / 96f; // 当前屏 DPI 缩放比：文字里的固定像素偏移也要跟着放
+        int gap = (int)(40 * s);
+        int margin = (int)(24 * s);
+
+        // 顶栏实际占高（已随 DPI 缩放）+ 底部广告位实际高度
+        int top = _lblConnStatus.Bottom + (int)(16 * s);
+        int areaHeight = ClientSize.Height - _pnlAd.Height - top;
+
+        // 小屏/高 DPI 下卡片经 DPI 缩放后可能超出可用区域：整体再缩一次，保证两卡完整可见。
+        // 缩过一次后 fit 回到 >=1，下次 Resize 不再重复缩；窗口改大不自动放大（居中即可）。
+        float fitW = (float)(ClientSize.Width - margin * 2) / (_pnlLogin.Width + gap + _pnlTopup.Width);
+        float fitH = areaHeight <= 0 ? 1f : (float)areaHeight / _pnlLogin.Height;
+        float fit = Math.Min(1f, Math.Min(fitW, fitH));
+        if (fit < 0.999f)
+        {
+            _pnlLogin.Scale(new SizeF(fit, fit));
+            _pnlTopup.Scale(new SizeF(fit, fit));
+        }
+
+        int cardY = top + Math.Max(0, (areaHeight - _pnlLogin.Height) / 2);
+        int totalWidth = _pnlLogin.Width + gap + _pnlTopup.Width;
+        int startX = Math.Max(margin, (ClientSize.Width - totalWidth) / 2);
+        _pnlLogin.Location = new Point(startX, cardY);
+        _pnlTopup.Location = new Point(startX + _pnlLogin.Width + gap, cardY);
+
+        _lblClock.Location = new Point(ClientSize.Width - _lblClock.Width - (int)(32 * s), (int)(24 * s));
+        _lblComputer.Location = new Point(ClientSize.Width - _lblComputer.Width - (int)(32 * s), (int)(72 * s));
     }
 
     // ================= 启动 =================

@@ -8,7 +8,11 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <AssemblyName>BNetSaaSClient</AssemblyName>
     <RootNamespace>BNetSaaSClient</RootNamespace>
-    <Version>1.0.0</Version>
+    <Version>1.0.1</Version>
+    <!-- 高 DPI：PerMonitorV2 + 各窗体 AutoScaleMode.Dpi。
+         之前没配，字体按点数随 DPI 放大、固定像素的卡片/按钮却不放，
+         150% 缩放的笔记本上标题、用户名、状态文字被裁、按钮文字溢出（用户 2026-11-23 截图）。 -->
+    <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
     <!-- Linux 沙箱上交叉编译 Windows 目标必须开这个开关，否则报 NETSDK1100 -->
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
     <!-- 单文件发布时不重要；平时以文件夹形式部署，client-config.json 放 exe 旁边 -->

@@ -2,7 +2,7 @@
 ; BNet-Workers 锁屏客户端 — 安装包脚本 (NSIS 3.x)
 ; 在 Linux 沙箱上用 makensis 编译, 产物为 Windows 安装程序:
 ;   cd installer && makensis BNet-Workers-Setup.nsi
-; 产物: BNet-Workers-Setup-1.0.0.exe
+; 产物: BNet-Workers-Setup-1.0.1.exe
 ;
 ; 安装内容:
 ;   1. 检测 .NET 8 Desktop Runtime (x64), 缺失时静默装捆绑的官方安装包
@@ -15,7 +15,7 @@
 ; ============================================================
 
 !define APPNAME "BNet-Workers 客户端"
-!define APPVERSION "1.0.0"
+!define APPVERSION "1.0.1"
 !define PUBLISHER "BNet-Workers"
 !define EXENAME "BNetSaaSClient.exe"
 !define RUNTIME_INSTALLER "windowsdesktop-runtime-8.0.34-win-x64.exe"
@@ -23,16 +23,16 @@
 
 Unicode true
 Name "${APPNAME} ${APPVERSION}"
-OutFile "BNet-Workers-Setup-1.0.0.exe"
+OutFile "BNet-Workers-Setup-1.0.1.exe"
 InstallDir "$PROGRAMFILES64\BNet-Workers"
 RequestExecutionLevel admin
 SetCompressor /SOLID lzma
 
 ; 安装程序自身的文件信息 (资源管理器属性里可见)
-VIProductVersion "1.0.0.0"
+VIProductVersion "1.0.1.0"
 VIAddVersionKey "ProductName" "BNet-Workers 客户端"
-VIAddVersionKey "FileVersion" "1.0.0.0"
-VIAddVersionKey "ProductVersion" "1.0.0"
+VIAddVersionKey "FileVersion" "1.0.1.0"
+VIAddVersionKey "ProductVersion" "1.0.1"
 VIAddVersionKey "CompanyName" "BNet-Workers"
 VIAddVersionKey "FileDescription" "BNet-Workers 锁屏客户端安装程序"
 VIAddVersionKey "LegalCopyright" "BNet-Workers"

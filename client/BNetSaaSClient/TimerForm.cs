@@ -30,13 +30,18 @@ public sealed class TimerForm : Form
         MinimizeBox = false;
         TopMost = true;
         ShowInTaskbar = false;
+        AutoScaleMode = AutoScaleMode.Dpi; // 跟锁屏一致：高 DPI 下窗体与字体同比缩放
         ClientSize = new Size(280, 190);
         BackColor = Color.FromArgb(15, 23, 42);
         ForeColor = Color.White;
 
-        // 放在主屏右上角
-        var area = Screen.PrimaryScreen?.WorkingArea ?? new Rectangle(0, 0, 1920, 1080);
-        Location = new Point(area.Right - Width - 16, area.Top + 16);
+        // 放在主屏右上角。构造时 Width 还是设计值，DPI 缩放后会变宽，
+        // 所以最终位置放 Load 里按缩放后的实际宽度算，否则高 DPI 下会伸出右边缘。
+        Load += (_, _) =>
+        {
+            var area2 = Screen.PrimaryScreen?.WorkingArea ?? new Rectangle(0, 0, 1920, 1080);
+            Location = new Point(area2.Right - Width - 16, area2.Top + 16);
+        };
 
         _lblUser.AutoSize = true;
         _lblUser.Font = new Font("微软雅黑", 12, FontStyle.Bold);

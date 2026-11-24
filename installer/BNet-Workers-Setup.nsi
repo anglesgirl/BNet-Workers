@@ -2,10 +2,11 @@
 ; BNet-Workers 锁屏客户端 — 安装包脚本 (NSIS 3.x)
 ; 在 Linux 沙箱上用 makensis 编译, 产物为 Windows 安装程序:
 ;   cd installer && makensis BNet-Workers-Setup.nsi
-; 产物: BNet-Workers-Setup-1.0.1.exe
+; 产物: BNet-Workers-Setup-1.0.2.exe (约 1 MB, 不再捆绑运行库)
 ;
 ; 安装内容:
-;   1. 检测 .NET 8 Desktop Runtime (x64), 缺失时静默装捆绑的官方安装包
+;   1. 检测 .NET 8 Desktop Runtime (x64), 缺失时才从微软官方 CDN
+;      在线下载安装 (约 56 MB); 已装过的机器不下载, 直接跳过
 ;   2. 锁屏客户端程序文件 -> C:\Program Files\BNet-Workers
 ;   3. 开始菜单 + 桌面快捷方式
 ;   4. 开机自启 (HKLM Run, 所有用户登录时启动)
@@ -15,24 +16,26 @@
 ; ============================================================
 
 !define APPNAME "BNet-Workers 客户端"
-!define APPVERSION "1.0.1"
+!define APPVERSION "1.0.2"
 !define PUBLISHER "BNet-Workers"
 !define EXENAME "BNetSaaSClient.exe"
 !define RUNTIME_INSTALLER "windowsdesktop-runtime-8.0.34-win-x64.exe"
+; 微软官方 CDN (与 dotnet.microsoft.com 下载页、releases.json 一致)
+!define RUNTIME_URL "https://builds.dotnet.microsoft.com/dotnet/WindowsDesktop/8.0.34/${RUNTIME_INSTALLER}"
 !define UNINSTALL_KEY "Software\Microsoft\Windows\CurrentVersion\Uninstall\BNet-Workers"
 
 Unicode true
 Name "${APPNAME} ${APPVERSION}"
-OutFile "BNet-Workers-Setup-1.0.1.exe"
+OutFile "BNet-Workers-Setup-1.0.2.exe"
 InstallDir "$PROGRAMFILES64\BNet-Workers"
 RequestExecutionLevel admin
 SetCompressor /SOLID lzma
 
 ; 安装程序自身的文件信息 (资源管理器属性里可见)
-VIProductVersion "1.0.1.0"
+VIProductVersion "1.0.2.0"
 VIAddVersionKey "ProductName" "BNet-Workers 客户端"
-VIAddVersionKey "FileVersion" "1.0.1.0"
-VIAddVersionKey "ProductVersion" "1.0.1"
+VIAddVersionKey "FileVersion" "1.0.2.0"
+VIAddVersionKey "ProductVersion" "1.0.2"
 VIAddVersionKey "CompanyName" "BNet-Workers"
 VIAddVersionKey "FileDescription" "BNet-Workers 锁屏客户端安装程序"
 VIAddVersionKey "LegalCopyright" "BNet-Workers"
@@ -77,14 +80,21 @@ Function .onInit
 FunctionEnd
 
 ; ------------------------------------------------------------
-; 运行库: 缺失时静默安装捆绑的官方 .NET 8 Desktop Runtime
+; 运行库: 缺失时从微软官方 CDN 在线下载安装 (不捆绑 56 MB 离线包,
+; 安装包因此只有约 1 MB; 已装 .NET 8 的机器直接跳过, 不下载)
+; 用 NSIS 自带 NSISdl 插件 (WinInet, 支持 HTTPS), 失败则提示手动安装。
 ; ------------------------------------------------------------
 Section "Microsoft .NET 8 Desktop Runtime" SEC_RUNTIME
   Call CheckDotNetRuntime
   ${If} $0 == "0"
-    DetailPrint "未检测到 .NET 8 Desktop Runtime，正在安装…"
-    SetOutPath "$TEMP"
-    File "staging\${RUNTIME_INSTALLER}"
+    DetailPrint "未检测到 .NET 8 Desktop Runtime，正在从微软官方下载…"
+    NSISdl::Download "${RUNTIME_URL}" "$TEMP\${RUNTIME_INSTALLER}"
+    Pop $2
+    ${If} $2 != "success"
+      MessageBox MB_ICONSTOP "下载 .NET 8 Desktop Runtime 失败 ($2)，请检查网络后重试，或手动安装后重新运行本安装程序。下载地址: https://dotnet.microsoft.com/download/dotnet/8.0"
+      Abort
+    ${EndIf}
+    DetailPrint ".NET 8 Desktop Runtime 下载完成，正在安装…"
     ExecWait '"$TEMP\${RUNTIME_INSTALLER}" /install /quiet /norestart' $1
     Delete "$TEMP\${RUNTIME_INSTALLER}"
     ; 0 = 成功, 3010 = 成功但提示重启 (文件已就位, 仍可继续)

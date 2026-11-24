@@ -2,21 +2,27 @@
 
 ## 产物
 
-- **安装程序**: `BNet-Workers-Setup-1.0.0.exe` (59,107,476 字节, 约 56 MB)
+- **安装程序**: `BNet-Workers-Setup-1.0.2.exe` (338,073 字节, 约 330 KB)
 - **安装脚本**: `BNet-Workers-Setup.nsi` (NSIS 3.x)
-- 客户端版本 1.0.0, 对应仓库 `anglesgirl/BNet-Workers` main 提交 e765999。
+- 客户端版本 1.0.2。
 
 ## 安装包里有什么
 
 - 锁屏客户端 (框架依赖版, `dotnet publish -c Release -r win-x64 --self-contained false`):
   `BNetSaaSClient.exe` / `.dll` / `.deps.json` / `.runtimeconfig.json` / `QRCoder.dll`
-- `.NET 8 Desktop Runtime 8.0.34 (x64)` 官方安装包 (已验 SHA-512 与微软发布值一致)
 - `client-config.example.json` 配置样例
+
+> **1.0.2 起不再捆绑运行库**: 之前安装包 57 MB, 其中 56 MB 是捆绑的
+> `.NET 8 Desktop Runtime` 离线安装包。现改成在线安装——安装包只有约 330 KB,
+> 检测到缺运行库时才从微软官方 CDN
+> (`builds.dotnet.microsoft.com`, 与 dotnet.microsoft.com 下载页一致)
+> 下载 8.0.34 安装; 已装过 .NET 8 的机器直接跳过, 不下载。
 
 ## 安装时做的事 (一键)
 
 1. 检测 `C:\Program Files\dotnet\shared\Microsoft.WindowsDesktop.App\8.*`,
-   缺失时静默装捆绑的 Desktop Runtime (失败则中止并提示手动安装地址)。
+   缺失时从微软官方 CDN 在线下载 Desktop Runtime 8.0.34 再静默安装
+   (下载失败则中止并提示手动安装地址); 已装则跳过, 不下载。
 2. 程序装到 `C:\Program Files\BNet-Workers`。
 3. 开始菜单 + 桌面快捷方式。
 4. 开机自启: `HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Run` 写 `BNetSaaSClient`

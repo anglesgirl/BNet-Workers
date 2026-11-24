@@ -100,6 +100,17 @@ export class CafeRoom implements DurableObject {
       }));
     } else if (data.type === 'heartbeat') {
       this.touch(computerId);
+      // 兜底：会话若卡在 offline（旧 bug 的残留：重连时 hello 没把状态写回去），
+      // 心跳把它纠回在线状态，免得已在线的机器在控制台一直显示离线。
+      const cur = this.getSession(computerId);
+      if (cur && cur.status === 'offline') {
+        const st = cur.rentalId ? 'in_use' : 'locked';
+        this.ctx.storage.sql.exec(
+          "UPDATE sessions SET status = ? WHERE computerId = ?", st, computerId,
+        );
+        await this.env.DB.prepare("UPDATE computers SET status = ? WHERE id = ?")
+          .bind(st, computerId).run().catch(() => undefined);
+      }
     }
   }
 
@@ -109,6 +120,11 @@ export class CafeRoom implements DurableObject {
     const tags = this.ctx.getTags(ws);
     const computerId = tags[0];
     if (!computerId) return;
+    // 客户端重连会先开新 socket 再关旧 socket（或旧 socket 的 close 回调晚到）：
+    // 还有活着的连接就别把状态打回 offline，否则在线的机器在控制台永远显示离线。
+    // 注意：close 回调里 getWebSockets 仍可能含正在关闭的这条，须把它排除再数。
+    const others = this.ctx.getWebSockets(computerId).filter((s) => s !== ws);
+    if (others.length > 0) return;
     this.ctx.storage.sql.exec(
       "UPDATE sessions SET status = 'offline', lastSeen = ? WHERE computerId = ?",
       Date.now(), computerId,
@@ -265,13 +281,19 @@ export class CafeRoom implements DurableObject {
   }
 
   private async upsertComputer(computerId: string, name: string): Promise<void> {
+    // hello = 机器在线：有在用订单保持 in_use/paused，否则 locked。
+    // 根因：旧写法 D1 只在 INSERT 时给 'locked'（冲突只改名），DO 用 INSERT OR IGNORE
+    // （会话已存在就整行跳过），所以机器断线重连后状态永远卡在 offline，控制台
+    // 看起来像没登记。改成每次 hello 都按当前会话状态显式回写。
+    const s = this.getSession(computerId);
+    const status = s?.rentalId ? (s.status === 'paused' ? 'paused' : 'in_use') : 'locked';
     await this.env.DB.prepare(
-      "INSERT INTO computers (id, name, status) VALUES (?, ?, 'locked') ON CONFLICT(id) DO UPDATE SET name = excluded.name",
-    ).bind(computerId, name).run().catch(() => undefined);
-    // 新电脑首次 hello：DO 里建一条空会话，状态 locked。
+      "INSERT INTO computers (id, name, status) VALUES (?, ?, ?) ON CONFLICT(id) DO UPDATE SET name = excluded.name, status = excluded.status",
+    ).bind(computerId, name, status).run().catch(() => undefined);
     this.ctx.storage.sql.exec(
-      `INSERT OR IGNORE INTO sessions (computerId, computerName, status, lastSeen) VALUES (?, ?, 'locked', ?)`,
-      computerId, name, Date.now(),
+      `INSERT INTO sessions (computerId, computerName, status, lastSeen) VALUES (?, ?, ?, ?)
+       ON CONFLICT(computerId) DO UPDATE SET computerName = excluded.computerName, status = excluded.status, lastSeen = excluded.lastSeen`,
+      computerId, name, status, Date.now(),
     );
     await this.env.DB.prepare('UPDATE computers SET last_seen = ? WHERE id = ?')
       .bind(nowIso(), computerId).run().catch(() => undefined);

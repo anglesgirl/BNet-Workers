@@ -53,6 +53,11 @@ public sealed class LockForm : Form
 
     private readonly System.Windows.Forms.Timer _clockTimer = new() { Interval = 1000 };
     private readonly System.Windows.Forms.Timer _watchdogTimer = new() { Interval = 5000 };
+    // 自动更新：启动时查一次，之后每 6 小时查一次；下好的安装包先攒着，
+    // 只在锁屏无人用时才静默安装重启，绝不在有人上机时动。
+    private readonly System.Windows.Forms.Timer _updateTimer = new() { Interval = 6 * 60 * 60 * 1000 };
+    private string? _pendingUpdatePath;
+    private bool _updateChecking;
     private readonly System.Windows.Forms.Timer _orderPollTimer = new() { Interval = 3000 };
 
     private static readonly Color BgColor = Color.FromArgb(15, 23, 42);
@@ -339,6 +344,44 @@ public sealed class LockForm : Form
 
         await RefreshConfigAsync();
         _watchdogTimer.Start();
+
+        // 自动更新：启动时查一次，之后每 6 小时查一次。
+        _updateTimer.Tick += async (_, _) => await CheckForUpdateAsync();
+        _updateTimer.Start();
+        _ = CheckForUpdateAsync();
+    }
+
+    // ================= 自动更新 =================
+
+    private async Task CheckForUpdateAsync()
+    {
+        if (_updateChecking) return;
+        _updateChecking = true;
+        try
+        {
+            // 已下好安装包就别重复查/重复下，等锁屏空闲时装。
+            if (_pendingUpdatePath is not null) { TryApplyPendingUpdate(); return; }
+            var info = await Updater.CheckAsync();
+            if (info is null) return;
+            var fileName = $"BNet-Workers-Setup-{info.Latest}.exe";
+            var path = await Updater.DownloadAsync(info.DownloadUrl, fileName);
+            if (path is null) return;
+            _pendingUpdatePath = path;
+            TryApplyPendingUpdate();
+        }
+        finally
+        {
+            _updateChecking = false;
+        }
+    }
+
+    private void TryApplyPendingUpdate()
+    {
+        if (_pendingUpdatePath is null) return;
+        if (_session.IsActive) return; // 有人上机：先攒着，下机变回锁屏时再装
+        var path = _pendingUpdatePath;
+        _pendingUpdatePath = null;
+        Updater.ApplyAndRestart(path);
     }
 
     private async Task RefreshConfigAsync()
@@ -509,6 +552,8 @@ public sealed class LockForm : Form
             Activate();
         }
         KeyboardLock.Start();
+        // 刚变回锁屏：若有攒着的新版安装包，现在装（没人用，不打扰）。
+        TryApplyPendingUpdate();
     }
 
     // ================= 游客扫码充值 =================

@@ -2,7 +2,7 @@
 ; BNet-Workers 锁屏客户端 — 安装包脚本 (NSIS 3.x)
 ; 在 Linux 沙箱上用 makensis 编译, 产物为 Windows 安装程序:
 ;   cd installer && makensis BNet-Workers-Setup.nsi
-; 产物: BNet-Workers-Setup-1.0.4.exe (约 1 MB, 不再捆绑运行库)
+; 产物: BNet-Workers-Setup-1.0.5.exe (约 1 MB, 不再捆绑运行库)
 ;
 ; 安装内容:
 ;   1. 检测 .NET 8 Desktop Runtime (x64), 缺失时才从微软官方 CDN
@@ -16,7 +16,7 @@
 ; ============================================================
 
 !define APPNAME "BNet-Workers 客户端"
-!define APPVERSION "1.0.4"
+!define APPVERSION "1.0.5"
 !define PUBLISHER "BNet-Workers"
 !define EXENAME "BNetSaaSClient.exe"
 !define RUNTIME_INSTALLER "windowsdesktop-runtime-8.0.34-win-x64.exe"
@@ -26,16 +26,16 @@
 
 Unicode true
 Name "${APPNAME} ${APPVERSION}"
-OutFile "BNet-Workers-Setup-1.0.4.exe"
+OutFile "BNet-Workers-Setup-1.0.5.exe"
 InstallDir "$PROGRAMFILES64\BNet-Workers"
 RequestExecutionLevel admin
 SetCompressor /SOLID lzma
 
 ; 安装程序自身的文件信息 (资源管理器属性里可见)
-VIProductVersion "1.0.4.0"
+VIProductVersion "1.0.5.0"
 VIAddVersionKey "ProductName" "BNet-Workers 客户端"
-VIAddVersionKey "FileVersion" "1.0.4.0"
-VIAddVersionKey "ProductVersion" "1.0.4"
+VIAddVersionKey "FileVersion" "1.0.5.0"
+VIAddVersionKey "ProductVersion" "1.0.5"
 VIAddVersionKey "CompanyName" "BNet-Workers"
 VIAddVersionKey "FileDescription" "BNet-Workers 锁屏客户端安装程序"
 VIAddVersionKey "LegalCopyright" "BNet-Workers"
@@ -115,9 +115,12 @@ Section "Microsoft .NET 8 Desktop Runtime" SEC_RUNTIME
 SectionEnd
 
 ; ------------------------------------------------------------
-; 锁屏客户端程序
+; 锁屏客户端程序（自动更新时安装包静默跑：先结束旧客户端再覆盖，
+; 装完拉起新客户端，锁屏不断档；首次安装也一样，配好后进锁屏）
 ; ------------------------------------------------------------
 Section "锁屏客户端" SEC_APP
+  ; 旧客户端在跑会锁住 exe 导致覆盖失败：先结束它（自动更新就是靠这个）
+  ExecWait 'taskkill.exe /F /IM ${EXENAME}' $0
   SetOutPath "$INSTDIR"
   File "staging\publish\BNetSaaSClient.exe"
   File "staging\publish\BNetSaaSClient.dll"
@@ -147,6 +150,9 @@ Section "锁屏客户端" SEC_APP
   WriteRegStr HKLM "${UNINSTALL_KEY}" "DisplayVersion" "${APPVERSION}"
   WriteRegDWORD HKLM "${UNINSTALL_KEY}" "NoModify" 1
   WriteRegDWORD HKLM "${UNINSTALL_KEY}" "NoRepair" 1
+
+  ; 装完拉起客户端：自动更新后锁屏自己回来；首次安装则弹配置窗（无配置时）。
+  Exec '"$INSTDIR\${EXENAME}"'
 SectionEnd
 
 ; ------------------------------------------------------------

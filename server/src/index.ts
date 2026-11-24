@@ -48,7 +48,15 @@ export default {
       const pricing = await env.DB.prepare('SELECT * FROM pricing WHERE enabled = 1 ORDER BY id').all();
       return json({
         shopName: await getShopName(env),
-        pricing: pricing.results,
+        // D1 列是 snake_case，客户端要 camelCase：直接返原行会让价格全变 0
+        // （name 能对上所以只剩“标准：0 元/小时”）。这里显式映射。
+        pricing: (pricing.results as Array<Record<string, unknown>>).map((p) => ({
+          id: p.id,
+          name: p.name,
+          pricePerHourCents: p.price_per_hour_cents,
+          memberPriceCents: p.member_price_cents,
+          vipPriceCents: p.vip_price_cents,
+        })),
         serverTime: nowIso(),
       });
     }

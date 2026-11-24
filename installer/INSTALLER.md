@@ -2,9 +2,9 @@
 
 ## 产物
 
-- **安装程序**: `BNet-Workers-Setup-1.0.5.exe` (342,043 字节, 约 334 KB)
+- **安装程序**: `BNet-Workers-Setup-1.0.6.exe` (342,239 字节, 约 334 KB)
 - **安装脚本**: `BNet-Workers-Setup.nsi` (NSIS 3.x)
-- 客户端版本 1.0.5。
+- 客户端版本 1.0.6。
 
 ## 安装包里有什么
 

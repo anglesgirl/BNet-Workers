@@ -70,8 +70,10 @@ public sealed class PricingItem
     [JsonPropertyName("memberPriceCents")] public int MemberPriceCents { get; set; }
     [JsonPropertyName("vipPriceCents")] public int VipPriceCents { get; set; }
 
+    // 锁屏收费标准只显示标准价：这行就叫“标准”，拿会员价当标题会误导
+    // （标准 5 元、会员 4 元时显示“标准：4 元/小时”是错的）。
     public string Display =>
-        $"{Name}：{(MemberPriceCents > 0 ? MemberPriceCents : PricePerHourCents) / 100.0:0.##} 元/小时";
+        $"{Name}：{PricePerHourCents / 100.0:0.##} 元/小时";
 }
 
 /// <summary>POST /api/client/login 返回</summary>

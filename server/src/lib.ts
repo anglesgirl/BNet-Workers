@@ -62,6 +62,41 @@ export function nowIso(): string {
   return new Date().toISOString();
 }
 
+/** 北京时间（UTC+8，无夏令时）的 YYYY-MM-DD。报表按这个日期算。 */
+export function shanghaiDate(d: Date): string {
+  const sh = new Date(d.getTime() + 8 * 3600 * 1000);
+  return sh.toISOString().slice(0, 10);
+}
+
+/** 当前班次开始时间：settings 的 shift_start，没交过班就取今天 0 点（北京时间）对应的 UTC。 */
+export async function getShiftStart(env: Env): Promise<string> {
+  const v = await getSetting(env, 'shift_start', '');
+  if (v) return v;
+  // 今天 0 点（北京时间）= 昨天 16:00 UTC
+  const today = shanghaiDate(new Date());
+  return `${today}T16:00:00.000Z`;
+}
+
+/** 班次/时段聚合：已支付充值（现金/微信分开）+ 已结束上机的消费与人次。时间是 UTC ISO。 */
+export async function shiftAgg(env: Env, start: string, end: string): Promise<{
+  topupCashCents: number; topupWechatCents: number; rentalCents: number; sessionCount: number;
+}> {
+  const top = await env.DB.prepare(
+    `SELECT channel, COALESCE(SUM(amount_cents), 0) AS s FROM topups WHERE status = 'paid' AND paid_at >= ? AND paid_at < ? GROUP BY channel`,
+  ).bind(start, end).all();
+  let cash = 0, wechat = 0;
+  for (const r of top.results as Array<{ channel: string; s: number }>) {
+    if (r.channel === 'cash') cash = r.s; else wechat += r.s;
+  }
+  const rent = await env.DB.prepare(
+    `SELECT COALESCE(SUM(amount_cents), 0) AS amt, COUNT(*) AS cnt FROM rentals WHERE status = 'ended' AND end_time >= ? AND end_time < ?`,
+  ).bind(start, end).first<{ amt: number; cnt: number }>();
+  return {
+    topupCashCents: cash, topupWechatCents: wechat,
+    rentalCents: rent?.amt ?? 0, sessionCount: rent?.cnt ?? 0,
+  };
+}
+
 /** 会员密码哈希：SHA-256(username + ':' + password)，WebCrypto 可用，无需 MD5。 */
 export async function hashPassword(username: string, password: string): Promise<string> {
   const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(`${username}:${password}`));

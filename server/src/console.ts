@@ -57,6 +57,7 @@ input,select{padding:8px;border:1px solid #ccc;border-radius:6px;font-size:14px;
       <button data-tab="pricing" onclick="showTab('pricing')">收费标准</button>
       <button data-tab="topups" onclick="showTab('topups')">充值记录</button>
       <button data-tab="rentals" onclick="showTab('rentals')">账单</button>
+      <button data-tab="report" onclick="showTab('report')">营业报表</button>
       <button data-tab="settings" onclick="showTab('settings')">设置</button>
       <button onclick="logout()" style="margin-left:auto">退出登录</button>
     </div>
@@ -115,6 +116,21 @@ input,select{padding:8px;border:1px solid #ccc;border-radius:6px;font-size:14px;
       <div class="card"><h3>账单（上机记录）</h3><div id="rentalList">加载中…</div></div>
     </div>
 
+    <div id="tab-report" class="tab hidden">
+      <div class="card"><h3>营业报表</h3>
+        日期 <input id="repDate" type="date"> <button class="primary" onclick="loadReport()">查询</button>
+        <div id="repOut" style="margin-top:10px">加载中…</div>
+        <p style="color:#666;font-size:13px">充值是收到的钱（现金/微信分开）；消费是上机扣的费（只算已结束的，进行中的不算）；日期按北京时间算。</p>
+      </div>
+      <div class="card"><h3>交班</h3>
+        <div id="shiftCur">加载中…</div>
+        交班人 <input id="shiftOp" size="10" placeholder="值班员名字"> 备注 <input id="shiftNote" size="20">
+        <button class="primary" onclick="closeShift()">交班</button> <span id="shiftMsg"></span>
+        <p style="color:#666;font-size:13px">交班后本班次清零，下个班次从现在开始算；交班记录留在这里备查。</p>
+      </div>
+      <div class="card"><h3>交班记录</h3><div id="shiftList">加载中…</div></div>
+    </div>
+
     <div id="tab-settings" class="tab hidden">
       <div class="card"><h3>设置</h3>
         网吧名 <input id="setShop" size="20"> <button class="primary" onclick="saveSettings()">保存</button>
@@ -164,6 +180,7 @@ function showTab(name){
   if(name==='pricing') loadPricing();
   if(name==='topups') loadTopups();
   if(name==='rentals') loadRentals();
+  if(name==='report') loadReportTab();
   if(name==='settings') loadSettings();
 }
 
@@ -303,6 +320,55 @@ function loadRentals(){
     });
     document.getElementById('rentalList').innerHTML = html + '</table>';
   }).catch(function(e){ document.getElementById('rentalList').innerHTML = '<p class="err">' + esc(e.message) + '</p>'; });
+}
+function loadReportTab(){
+  var d = document.getElementById('repDate');
+  if(!d.value){ var t = new Date(Date.now() + 8*3600*1000); d.value = t.toISOString().slice(0,10); }
+  loadReport(); loadCurrentShift(); loadShifts();
+}
+function loadReport(){
+  var date = document.getElementById('repDate').value;
+  api('/api/admin/report?date=' + encodeURIComponent(date)).then(function(j){
+    document.getElementById('repOut').innerHTML =
+      '<table><tr><th>项目</th><th>金额/数量</th></tr>'
+      + '<tr><td>充值收入（现金）</td><td>' + fmtMoney(j.topupCashCents) + '</td></tr>'
+      + '<tr><td>充值收入（微信）</td><td>' + fmtMoney(j.topupWechatCents) + '</td></tr>'
+      + '<tr><td>充值收入（合计）</td><td><b>' + fmtMoney(j.topupTotalCents) + '</b></td></tr>'
+      + '<tr><td>上机消费</td><td>' + fmtMoney(j.rentalCents) + '</td></tr>'
+      + '<tr><td>上机人次</td><td>' + j.sessionCount + ' 次</td></tr>'
+      + '<tr><td>上机总时长</td><td>' + j.totalMinutes + ' 分钟</td></tr>'
+      + '<tr><td>新开会员</td><td>' + j.newMembers + ' 人</td></tr></table>';
+  }).catch(function(e){ document.getElementById('repOut').innerHTML = '<p class="err">' + esc(e.message) + '</p>'; });
+}
+function loadCurrentShift(){
+  api('/api/admin/shift/current').then(function(j){
+    document.getElementById('shiftCur').innerHTML =
+      '<p>本班次从 ' + fmtTime(j.startTime) + ' 开始：现金充值 ' + fmtMoney(j.topupCashCents)
+      + '，微信充值 ' + fmtMoney(j.topupWechatCents) + '，上机消费 ' + fmtMoney(j.rentalCents)
+      + '，' + j.sessionCount + ' 人次。</p>';
+  }).catch(function(e){ document.getElementById('shiftCur').innerHTML = '<p class="err">' + esc(e.message) + '</p>'; });
+}
+function closeShift(){
+  var op = document.getElementById('shiftOp').value.trim();
+  var note = document.getElementById('shiftNote').value;
+  if(!confirm('确定交班吗？本班次结算后清零，下个班次从现在开始。')) return;
+  api('/api/admin/shift/close', {method:'POST', body: JSON.stringify({operator: op, note: note})})
+    .then(function(j){
+      document.getElementById('shiftMsg').textContent = '已交班：现金 ' + fmtMoney(j.topupCashCents) + '，微信 ' + fmtMoney(j.topupWechatCents) + '，消费 ' + fmtMoney(j.rentalCents) + '，' + j.sessionCount + ' 人次。';
+      document.getElementById('shiftMsg').className = 'ok';
+      loadCurrentShift(); loadShifts();
+    })
+    .catch(function(e){ document.getElementById('shiftMsg').textContent = e.message; document.getElementById('shiftMsg').className = 'err'; });
+}
+function loadShifts(){
+  api('/api/admin/shifts').then(function(j){
+    if(!j.shifts.length){ document.getElementById('shiftList').innerHTML = '<p>暂无交班记录。</p>'; return; }
+    var html = '<table><tr><th>班次</th><th>交班人</th><th>现金充值</th><th>微信充值</th><th>上机消费</th><th>人次</th><th>备注</th></tr>';
+    j.shifts.forEach(function(s){
+      html += '<tr><td>' + fmtTime(s.start_time) + ' ~ ' + fmtTime(s.end_time) + '</td><td>' + esc(s.operator||'') + '</td><td>' + fmtMoney(s.topup_cash_cents) + '</td><td>' + fmtMoney(s.topup_wechat_cents) + '</td><td>' + fmtMoney(s.rental_cents) + '</td><td>' + s.session_count + '</td><td>' + esc(s.note||'') + '</td></tr>';
+    });
+    document.getElementById('shiftList').innerHTML = html + '</table>';
+  }).catch(function(e){ document.getElementById('shiftList').innerHTML = '<p class="err">' + esc(e.message) + '</p>'; });
 }
 function loadSettings(){
   api('/api/admin/settings').then(function(j){

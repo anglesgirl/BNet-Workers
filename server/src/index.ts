@@ -2,7 +2,7 @@
 // 部署模型：单租户，一个 Worker = 一家网吧。配置走 secrets / 环境变量。
 
 import { CONSOLE_HTML } from './console';
-import { doFetch, doStub, endRental, ensureComputer, err, getDefaultPricing, getSetting, getShopName, getUserByUsername, hashPassword, json, makeAdminToken, markTopupPaid, nowIso, pricePerHour, verifyAdminToken, type Env } from './lib';
+import { doFetch, doStub, endRental, ensureComputer, err, getDefaultPricing, getSetting, getShiftStart, getShopName, getUserByUsername, hashPassword, json, makeAdminToken, markTopupPaid, nowIso, pricePerHour, shanghaiDate, shiftAgg, verifyAdminToken, type Env } from './lib';
 import { createNativeOrder, generateOutTradeNo, notifyFailXml, notifySuccessXml, parseXml, queryOrderTradeState, verifyNotifySign } from './wechat';
 
 export { CafeRoom } from './do';
@@ -288,11 +288,22 @@ export default {
       const b = await readJson(request);
       const id = Number(b.id ?? 0);
       if (id) {
-        const cur = await env.DB.prepare('SELECT * FROM users WHERE id = ?').bind(id).first<{ username: string }>();
+        const cur = await env.DB.prepare('SELECT * FROM users WHERE id = ?').bind(id).first<{ username: string; balance_cents: number }>();
         if (!cur) return err('会员不存在', 404);
         if (b.password) {
           await env.DB.prepare('UPDATE users SET password_hash = ? WHERE id = ?')
             .bind(await hashPassword(cur.username, String(b.password)), id).run();
+        }
+        // 前台现金充值：余额增加了就记一条 topups（channel='cash'），否则报表
+        // 算不到这笔钱，交班也对不上账。以前只改余额不留记录，是个洞。
+        const newBalance = b.balanceCents == null ? null : Math.floor(Number(b.balanceCents));
+        if (newBalance != null && newBalance > (cur.balance_cents ?? 0)) {
+          const diff = newBalance - (cur.balance_cents ?? 0);
+          const orderNo = 'CASH-' + new Date().toISOString().replace(/[-:.TZ]/g, '').slice(0, 14)
+            + '-' + Math.floor(Math.random() * 10000).toString().padStart(4, '0');
+          await env.DB.prepare(
+            "INSERT INTO topups (order_no, user_id, computer_id, amount_cents, status, channel, paid_at) VALUES (?, ?, '', ?, 'paid', 'cash', ?)",
+          ).bind(orderNo, id, diff, nowIso()).run();
         }
         await env.DB.prepare('UPDATE users SET type = COALESCE(?, type), phone = COALESCE(?, phone), balance_cents = COALESCE(?, balance_cents) WHERE id = ?')
           .bind(b.type ?? null, b.phone ?? null, b.balanceCents ?? null, id).run();
@@ -321,6 +332,60 @@ export default {
         `SELECT t.*, u.username FROM topups t LEFT JOIN users u ON u.id = t.user_id ORDER BY t.id DESC LIMIT 200`,
       ).all();
       return json({ ok: true, topups: rows.results });
+    }
+
+    // GET /api/admin/report?date=YYYY-MM-DD — 营业报表（默认今天）。
+    // 日期按北京时间（UTC+8，无夏令时）算：date(时间, '+8 hours') 取北京时间的日期。
+    // 充值 = 已支付的 topups（现金/微信分开）；消费 = 当天开始的上机（rentals 金额，
+    // 只算已结束的；进行中的还没结算不算）；另给上机人次、总时长、新会员数。
+    if (path === '/api/admin/report' && request.method === 'GET') {
+      const date = String(url.searchParams.get('date') ?? '').trim() || shanghaiDate(new Date());
+      const top = await env.DB.prepare(
+        `SELECT channel, COALESCE(SUM(amount_cents), 0) AS s FROM topups WHERE status = 'paid' AND date(paid_at, '+8 hours') = ? GROUP BY channel`,
+      ).bind(date).all();
+      let cash = 0, wechat = 0;
+      for (const r of top.results as Array<{ channel: string; s: number }>) {
+        if (r.channel === 'cash') cash = r.s; else wechat += r.s;
+      }
+      const rent = await env.DB.prepare(
+        `SELECT COALESCE(SUM(amount_cents), 0) AS amt, COUNT(*) AS cnt, COALESCE(SUM(CAST((julianday(end_time) - julianday(start_time)) * 1440 AS INTEGER)), 0) AS mins FROM rentals WHERE status = 'ended' AND date(start_time, '+8 hours') = ?`,
+      ).bind(date).first<{ amt: number; cnt: number; mins: number }>();
+      const nm = await env.DB.prepare(
+        `SELECT COUNT(*) AS c FROM users WHERE type != 'admin' AND date(created_at, '+8 hours') = ?`,
+      ).bind(date).first<{ c: number }>();
+      return json({
+        ok: true, date,
+        topupCashCents: cash, topupWechatCents: wechat, topupTotalCents: cash + wechat,
+        rentalCents: rent?.amt ?? 0, sessionCount: rent?.cnt ?? 0, totalMinutes: rent?.mins ?? 0,
+        newMembers: nm?.c ?? 0,
+      });
+    }
+
+    // GET /api/admin/shift/current — 当前班次（从上次交班到现在）的累计。
+    if (path === '/api/admin/shift/current' && request.method === 'GET') {
+      const start = await getShiftStart(env);
+      const agg = await shiftAgg(env, start, nowIso());
+      return json({ ok: true, startTime: start, ...agg });
+    }
+
+    // POST /api/admin/shift/close {operator, note} — 交班：快照本班次，下个班次从现在开始。
+    if (path === '/api/admin/shift/close' && request.method === 'POST') {
+      const b = await readJson(request);
+      const start = await getShiftStart(env);
+      const end = nowIso();
+      const agg = await shiftAgg(env, start, end);
+      const ins = await env.DB.prepare(
+        `INSERT INTO shifts (start_time, end_time, operator, topup_cash_cents, topup_wechat_cents, rental_cents, session_count, note) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      ).bind(start, end, String(b.operator ?? ''), agg.topupCashCents, agg.topupWechatCents, agg.rentalCents, agg.sessionCount, String(b.note ?? '')).run();
+      await env.DB.prepare(`INSERT INTO settings (key, value) VALUES ('shift_start', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value`)
+        .bind(end).run();
+      return json({ ok: true, id: Number(ins.meta.last_row_id), startTime: start, endTime: end, ...agg });
+    }
+
+    // GET /api/admin/shifts — 交班记录（最新在前）。
+    if (path === '/api/admin/shifts' && request.method === 'GET') {
+      const rows = await env.DB.prepare('SELECT * FROM shifts ORDER BY id DESC LIMIT 50').all();
+      return json({ ok: true, shifts: rows.results });
     }
 
     // GET/POST /api/admin/pricing
